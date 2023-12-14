@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Форма Шифрования</title>
+</head>
+<body>
+    <h2>Форма Шифрования</h2>
+    <form id="encryptionForm">
+        <label for="key">Введите 128-битный ключ:</label><br>
+        <input type="text" id="key" name="key" minlength="16" maxlength="16" required><br>
+
+        <label for="name">Введите ваше имя:</label><br>
+        <input type="text" id="name" name="name" required><br>
+
+        <input type="submit" value="Зашифровать">
+    </form>
+
+
+    <form id="decryptionForm">
+        <input id="decryptButton" type="submit" value="Расшифровать">
+    </form>
+    <p>Зашифрованный текст:</p>
+    <pre id="encryptedText"></pre>
+
+    <p>Расшифрованный текст:</p>
+    <pre id="decryptedText"></pre>
+
+    <script>
+
+        // Кодирование 
+        function stringToHexArray(str) {
+            const hexArray = [];
+            for (let i = 0; i < str.length; i++) {
+                const hexCode = str.charCodeAt(i).toString(16);
+                hexArray.push(parseInt(hexCode, 16));
+            }
+            return hexArray;
+        }
+
+        //Слушатель события
+        document.getElementById("encryptionForm").addEventListener("submit", function (event) {
+            event.preventDefault();
+            var key33 = document.getElementById("key").value;
+            var str = document.getElementById("name").value;
+            let encodedString = stringToHexArray(str);
+            let k = stringToHexArray(key33)
+            let n = encodedString.length;
+
+
+            // Функция MX выполняет сложную математическую операцию, используемую в шифровании и дешифровании.
+            function MX(z, y, total, key, p, e) {
+                // Вычисление первой части операции, включающей сдвиги и XOR.
+                let temp1 = ((z >>> 5 ^ y << 2) + (y >>> 3 ^ z << 4)) >>> 0;
+                // Вычисление второй части, включающей суммирование и XOR.
+                let temp2 = ((total ^ y) + (key[(p & 3) ^ e] ^ z)) >>> 0;
+                // Возвращение результата как 32-битное беззнаковое целое.
+                return (temp1 ^ temp2) >>> 0;
+            }
+
+
+            // Функция для шифрования данных.
+            function encrypt(n, encodedString, key) {
+                const delta = 0x9e3779b9; // Константа, используемая в алгоритме.
+                let rounds = 6 + Math.floor(52 / n); // Вычисление количества раундов шифрования.
+                let total = 0; // Инициализация счетчика.
+                let z = encodedString[n - 1]; // Инициализация Z последним элементом входных данных.
+                let e;
+
+                // Основной цикл шифрования.
+                while (rounds > 0) {
+                    total = (total + delta) >>> 0; // Инкремент счетчика на значение delta.
+                    e = (total >>> 2) & 3; // Вычисление e для использования в MX.
+
+                    for (let p = 0; p < n - 1; p++) {
+                        let y = encodedString[p + 1]; // Получение следующего элемента данных.
+                        // Обновление текущего элемента с использованием MX.
+                        encodedString[p] = (encodedString[p] + MX(z, y, total, key, p, e)) >>> 0;
+                        z = encodedString[p]; // Обновление z для следующего шага.
+                    }
+
+                    let y = encodedString[0]; // Получение первого элемента для последнего шага.
+                    // Обновление последнего элемента.
+                    encodedString[n - 1] = (encodedString[n - 1] + MX(z, y, total, key, n - 1, e)) >>> 0;
+                    z = encodedString[n - 1]; // Обновление z для следующего раунда.
+                    rounds--; // Уменьшение количества оставшихся раундов.
+                }
+
+                return encodedString; // Возвращение зашифрованных данных.
+            }
+
+            // Функция для дешифрования данных.
+            function decrypt(n, encodedString, key) {
+                const delta = 0x9e3779b9; // Константа, используемая в алгоритме.
+                let rounds = 6 + Math.floor(52 / n); // Вычисление количества раундов дешифрования.
+                let total = (rounds * delta) >>> 0; // Инициализация счетчика для дешифрования.
+                let y = encodedString[0]; // Инициализация y первым элементом входных данных.
+                let e;
+
+                // Основной цикл дешифрования.
+                while (rounds > 0) {
+                    e = (total >>> 2) & 3; // Вычисление e для использования в MX.
+
+                    for (let p = n - 1; p > 0; p--) {
+                        let z = encodedString[p - 1]; // Получение предыдущего элемента данных.
+                        // Обновление текущего элемента с использованием MX.
+                        encodedString[p] = ((encodedString[p] - MX(z, y, total, key, p, e)) + 0x100000000) % 0x100000000;
+                        y = encodedString[p]; // Обновление y для следующего шага.
+                    }
+
+                    let z = encodedString[n - 1]; // Получение последнего элемента для первого шага.
+                    // Обновление первого элемента.
+                    encodedString[0] = ((encodedString[0] - MX(z, y, total, key, 0, e)) + 0x100000000) % 0x100000000;
+                    y = encodedString[0]; // Обновление y для следующего раунда.
+                    total = (total - delta) >>> 0; // Уменьшение значения счетчика.
+                    rounds--; // Уменьшение количества оставшихся раундов.
+                }
+
+                return encodedString; // Возвращение расшифрованных данных.
+            }
+
+            //декодирование
+            function hexArrayToAscii(hexArray) {
+                return hexArray.map(hexCode => String.fromCharCode(parseInt(hexCode, 16))).join('');
+            }
+
+            function hexToAscii(hexString) {
+                let asciiString = '';
+                for (let i = 0; i < hexString.length; i += 2) {
+                    let hexCode = hexString.substr(i, 2);
+                    asciiString += String.fromCharCode(parseInt(hexCode, 16));
+                }
+                return asciiString;
+            }
+
+            console.log('Данные кодирования: ', encodedString.map(val => val.toString(16)));
+            let encrypted = encrypt(n, encodedString.slice(), k);
+            const arr1 = encrypted.map(val => val.toString(16));
+            console.log("Зашифрованные данные:", arr1);
+            let decrypted = decrypt(n, encrypted, k);
+            const arr = decrypted.map(val => val.toString(16));
+            console.log("Расшифрованные данные:", arr);
+            console.log(hexArrayToAscii(arr))
+
+            // Отображаем зашифрованный текст на странице
+            document.getElementById("encryptedText").innerText = arr1.join(' ');
+
+            // Отображаем расшифрованный текст на странице
+            document.getElementById("decryptedText").innerText = hexArrayToAscii(arr);
+        })
+
+    </script>
+</body>
+
+</html>
